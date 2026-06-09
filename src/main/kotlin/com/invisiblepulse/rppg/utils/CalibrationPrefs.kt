@@ -36,6 +36,11 @@ class CalibrationPrefs(context: Context) {
     }
 
     fun reset() {
-        prefs.edit().clear().apply()
+        prefs.edit()
+            .remove("bpm_offset")
+            .remove("systolic_offset")
+            .remove("diastolic_offset")
+            .remove("is_calibrated")
+            .apply()
     }
 }

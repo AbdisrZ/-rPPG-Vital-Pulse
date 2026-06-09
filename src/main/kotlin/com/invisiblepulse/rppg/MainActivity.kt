@@ -45,13 +45,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun VitalPulseApp(viewModel: ScanViewModel) {
     val scans by viewModel.allScans.collectAsState()
 
     var currentTab by remember { mutableStateOf(AppTab.VITALS) }
     var bpmResult by remember { mutableStateOf(BpmResult(0.0, 0.0, 0.0, MeasurementStatus.SEARCHING)) }
+    val latestBpmResult by rememberUpdatedState(bpmResult)
     var completedResult by remember { mutableStateOf<BpmResult?>(null) }
     val signalHistory = remember { mutableStateListOf<Float>() }
     var scanTimer by remember { mutableIntStateOf(15) }
@@ -76,7 +76,7 @@ fun VitalPulseApp(viewModel: ScanViewModel) {
                 scanTimer--
             }
             if (scanTimer == 0) {
-                completedResult = bpmResult
+                completedResult = latestBpmResult
                 isShowingResults = true
             }
         } else if (bpmResult.status == MeasurementStatus.SEARCHING) {
@@ -85,7 +85,7 @@ fun VitalPulseApp(viewModel: ScanViewModel) {
         }
     }
 
-    val weeklyStats = viewModel.weeklyStats(scans)
+    val weeklyStats = remember(scans) { viewModel.weeklyStats(scans) }
 
     Scaffold(
         topBar = { VitalPulseTopBar(currentTab) },
@@ -104,6 +104,7 @@ fun VitalPulseApp(viewModel: ScanViewModel) {
                     if (isShowingResults && completedResult != null) {
                         ResultsScreen(
                             result = completedResult!!,
+                            bpmOffset = viewModel.calibPrefs.bpmOffset,
                             systolicOffset = viewModel.calibPrefs.systolicOffset,
                             diastolicOffset = viewModel.calibPrefs.diastolicOffset,
                             onSave = { record -> viewModel.saveScan(record) },

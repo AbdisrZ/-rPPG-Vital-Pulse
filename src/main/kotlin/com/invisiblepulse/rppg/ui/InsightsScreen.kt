@@ -27,16 +27,16 @@ fun InsightsScreen(
     scans: List<ScanRecord>,
     modifier: Modifier = Modifier
 ) {
-    val cutoff7d = System.currentTimeMillis() - 7 * 24 * 3600 * 1000L
-    val cutoff30d = System.currentTimeMillis() - 30 * 24 * 3600 * 1000L
-    val week = scans.filter { it.timestamp > cutoff7d }
-    val month = scans.filter { it.timestamp > cutoff30d }
-
-    val avgBpm = if (week.isNotEmpty()) week.map { it.bpm }.average() else 0.0
-    val avgHrv = if (week.isNotEmpty()) week.map { it.hrv }.average() else 0.0
-    val dominantStatus = week.groupBy { it.status }.maxByOrNull { it.value.size }?.key ?: "NORMAL"
-    val normalCount = week.count { it.status == "NORMAL" }
-    val healthScore = if (week.isEmpty()) 0 else ((normalCount.toDouble() / week.size) * 100).toInt()
+    val now = remember { System.currentTimeMillis() }
+    val week = remember(scans) { scans.filter { it.timestamp > now - 7 * 24 * 3600 * 1000L } }
+    val month = remember(scans) { scans.filter { it.timestamp > now - 30 * 24 * 3600 * 1000L } }
+    val avgBpm = remember(week) { if (week.isNotEmpty()) week.map { it.bpm }.average() else 0.0 }
+    val avgHrv = remember(week) { if (week.isNotEmpty()) week.map { it.hrv }.average() else 0.0 }
+    val dominantStatus = remember(week) { week.groupBy { it.status }.maxByOrNull { it.value.size }?.key ?: "NORMAL" }
+    val healthScore = remember(week) {
+        val normalCount = week.count { it.status == "NORMAL" }
+        if (week.isEmpty()) 0 else ((normalCount.toDouble() / week.size) * 100).toInt()
+    }
 
     Column(
         modifier = modifier

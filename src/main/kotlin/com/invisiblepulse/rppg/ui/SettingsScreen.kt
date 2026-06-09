@@ -29,6 +29,7 @@ fun SettingsScreen(
     var showCalibrationSection by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var calibrationSaved by remember { mutableStateOf(false) }
+    var showValidationError by remember { mutableStateOf(false) }
 
     // Calibration inputs
     var measuredBpm by remember { mutableStateOf("") }
@@ -79,7 +80,7 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(12.dp))
             OutlinedButton(
-                onClick = { showCalibrationSection = !showCalibrationSection; calibrationSaved = false },
+                onClick = { showCalibrationSection = !showCalibrationSection; calibrationSaved = false; showValidationError = false },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -119,14 +120,35 @@ fun SettingsScreen(
                     Spacer(Modifier.height(8.dp))
                 }
 
+                if (showValidationError) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(VitalPulseTheme.AmberContainer, RoundedCornerShape(10.dp))
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Info, null, tint = VitalPulseTheme.Amber, modifier = Modifier.size(16.dp))
+                        Text("Isi semua field sebelum menyimpan.", style = VitalPulseTheme.Typography.labelSmall, color = Color(0xFF92400E))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 Button(
                     onClick = {
-                        val mBpm = measuredBpm.toDoubleOrNull() ?: return@Button
-                        val aBpm = actualBpm.toDoubleOrNull() ?: return@Button
-                        val mSys = measuredSystolic.toIntOrNull() ?: return@Button
-                        val aSys = actualSystolic.toIntOrNull() ?: return@Button
-                        val mDia = measuredDiastolic.toIntOrNull() ?: return@Button
-                        val aDia = actualDiastolic.toIntOrNull() ?: return@Button
+                        val mBpm = measuredBpm.toDoubleOrNull()
+                        val aBpm = actualBpm.toDoubleOrNull()
+                        val mSys = measuredSystolic.toIntOrNull()
+                        val aSys = actualSystolic.toIntOrNull()
+                        val mDia = measuredDiastolic.toIntOrNull()
+                        val aDia = actualDiastolic.toIntOrNull()
+                        if (mBpm == null || aBpm == null || mSys == null || aSys == null || mDia == null || aDia == null) {
+                            showValidationError = true
+                            return@Button
+                        }
+                        showValidationError = false
                         calibPrefs.calibrate(mBpm, aBpm, mSys, aSys, mDia, aDia)
                         calibrationSaved = true
                     },

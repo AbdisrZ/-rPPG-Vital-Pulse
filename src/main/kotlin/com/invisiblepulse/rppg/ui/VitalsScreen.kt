@@ -1,5 +1,11 @@
 package com.invisiblepulse.rppg.ui
 
+import android.content.pm.PackageManager
+import android.hardware.camera2.CaptureRequest
+import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.CaptureRequestOptions
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -13,7 +19,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -26,12 +32,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import com.invisiblepulse.rppg.BpmResult
 import com.invisiblepulse.rppg.MeasurementStatus
 import com.invisiblepulse.rppg.VitalPulseTheme
@@ -46,6 +53,40 @@ fun VitalsScreen(
     onResult: (BpmResult) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val hasCameraPermission = remember {
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+    }
+
+    if (!hasCameraPermission) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            ) {
+                Icon(
+                    Icons.Default.VideocamOff, null,
+                    modifier = Modifier.size(64.dp),
+                    tint = VitalPulseTheme.OnSurfaceVariant
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Izin Kamera Diperlukan",
+                    style = VitalPulseTheme.Typography.headlineSmall,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Buka Pengaturan → Aplikasi → Vital Pulse dan aktifkan izin Kamera.",
+                    style = VitalPulseTheme.Typography.bodyMedium,
+                    color = VitalPulseTheme.OnSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        return
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -123,7 +164,7 @@ fun ScannerView(result: BpmResult, onResult: (BpmResult) -> Unit) {
                 .background(Color.White)
                 .border(3.dp, VitalPulseTheme.OutlineVariant, CircleShape)
         ) {
-            CameraPreview(onResult)
+            CameraPreview(result.status, onResult)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -231,22 +272,49 @@ fun LiveSignalCard(history: List<Float>) {
     }
 }
 
+@OptIn(ExperimentalCamera2Interop::class)
 @Composable
-fun CameraPreview(onResult: (BpmResult) -> Unit) {
+fun CameraPreview(status: MeasurementStatus, onResult: (BpmResult) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember { PreviewView(context) }
     val executor = remember { Executors.newSingleThreadExecutor() }
+    val cameraRef = remember { mutableStateOf<Camera?>(null) }
+    val analyzerRef = remember { mutableStateOf<com.invisiblepulse.rppg.rPPGAnalyzer?>(null) }
+    val providerRef = remember { mutableStateOf<ProcessCameraProvider?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            providerRef.value?.unbindAll()
+            analyzerRef.value?.close()
+            executor.shutdown()
+        }
+    }
+
+    // Lock AWB + AE when face is detected to prevent ISP interference with rPPG signal
+    LaunchedEffect(status) {
+        val cam = cameraRef.value ?: return@LaunchedEffect
+        val lock = status != MeasurementStatus.SEARCHING
+        Camera2CameraControl.from(cam.cameraControl).captureRequestOptions =
+            CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_LOCK, lock)
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, lock)
+                .build()
+    }
 
     LaunchedEffect(Unit) {
-        ProcessCameraProvider.getInstance(context).addListener({
-            val provider = ProcessCameraProvider.getInstance(context).get()
+        val future = ProcessCameraProvider.getInstance(context)
+        future.addListener({
+            val provider = future.get().also { providerRef.value = it }
             val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+            val analyzer = com.invisiblepulse.rppg.rPPGAnalyzer(onResult).also { analyzerRef.value = it }
             val analysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build().also { it.setAnalyzer(executor, rPPGAnalyzer(onResult)) }
+                .build().also { it.setAnalyzer(executor, analyzer) }
             provider.unbindAll()
-            provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_FRONT_CAMERA, preview, analysis)
+            cameraRef.value = provider.bindToLifecycle(
+                lifecycleOwner, CameraSelector.DEFAULT_FRONT_CAMERA, preview, analysis
+            )
         }, ContextCompat.getMainExecutor(context))
     }
     AndroidView({ previewView }, Modifier.fillMaxSize())

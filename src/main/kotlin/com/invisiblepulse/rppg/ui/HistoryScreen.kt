@@ -149,6 +149,23 @@ fun ScanHistoryItem(scan: ScanRecord, onDelete: () -> Unit) {
     val statusColor = VitalPulseTheme.statusColor(scan.status)
     val statusContainerColor = VitalPulseTheme.statusContainerColor(scan.status)
     var expanded by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Hapus scan ini?") },
+            text = { Text("Data tidak dapat dikembalikan.") },
+            confirmButton = {
+                TextButton(onClick = { onDelete(); showDeleteDialog = false }) {
+                    Text("Hapus", color = VitalPulseTheme.Secondary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Batal") }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -208,7 +225,7 @@ fun ScanHistoryItem(scan: ScanRecord, onDelete: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.End
             ) {
-                TextButton(onClick = onDelete) {
+                TextButton(onClick = { showDeleteDialog = true }) {
                     Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp), tint = VitalPulseTheme.Secondary)
                     Spacer(Modifier.width(4.dp))
                     Text("Hapus", color = VitalPulseTheme.Secondary, style = VitalPulseTheme.Typography.labelMedium)

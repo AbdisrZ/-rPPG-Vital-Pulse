@@ -24,13 +24,14 @@ import com.invisiblepulse.rppg.utils.BPEstimator
 @Composable
 fun ResultsScreen(
     result: BpmResult,
+    bpmOffset: Int,
     systolicOffset: Int,
     diastolicOffset: Int,
     onSave: (ScanRecord) -> Unit,
     onScanAgain: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bpm = result.bpm
+    val bpm = (result.bpm + bpmOffset).coerceIn(30.0, 250.0)
     val (systolic, diastolic) = BPEstimator.estimate(bpm, result.hrv, systolicOffset, diastolicOffset)
     val status = BPEstimator.classify(bpm, systolic)
     val statusColor = VitalPulseTheme.statusColor(status)

@@ -18,15 +18,4 @@ interface ScanDao {
     @Query("DELETE FROM scan_records")
     suspend fun deleteAll()
 
-    @Query("SELECT AVG(bpm) FROM scan_records WHERE timestamp > :since")
-    suspend fun averageBpmSince(since: Long): Double?
-
-    @Query("SELECT MAX(bpm) FROM scan_records WHERE timestamp > :since")
-    suspend fun maxBpmSince(since: Long): Double?
-
-    @Query("SELECT MIN(bpm) FROM scan_records WHERE timestamp > :since")
-    suspend fun minBpmSince(since: Long): Double?
-
-    @Query("SELECT COUNT(*) FROM scan_records")
-    suspend fun totalCount(): Int
 }
