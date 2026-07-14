@@ -1,63 +1,162 @@
-# Vital Pulse: Remote Photoplethysmography (rPPG) Android App
+# Vital Pulse 💓
 
-**Vital Pulse** adalah aplikasi Android berbasis *non-contact heart rate monitoring* yang menggunakan teknologi **rPPG** (Remote Photoplethysmography). Aplikasi ini mampu mendeteksi detak jantung (BPM), variabilitas detak jantung (HRV), dan saturasi oksigen (SpO2) hanya dengan menggunakan kamera depan ponsel tanpa sensor fisik tambahan.
+**Aplikasi Pemantauan Tanda Vital Nirkontak Berbasis rPPG (Remote Photoplethysmography) untuk Android**
 
----
+![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)
+![Language](https://img.shields.io/badge/Language-Kotlin%20100%25-7F52FF?logo=kotlin&logoColor=white)
+![UI](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)
 
-## 🚀 Cara Aplikasi Berjalan
-
-Aplikasi ini bekerja dengan mendeteksi perubahan mikroskopis pada warna kulit wajah yang disebabkan oleh aliran darah di bawah kulit (denyut nadi).
-
-1.  **Face Tracking:** Menggunakan ML Kit untuk mendeteksi wajah dan menentukan *Region of Interest* (ROI), khususnya area dahi.
-2.  **Signal Extraction:** Mengekstrak nilai intensitas warna rata-rata dari kanal **Green** (hijau), karena kanal ini memiliki rasio sinyal-ke-derau (SNR) terbaik untuk hemoglobin.
-3.  **Preprocessing:** Sinyal mentah dibersihkan menggunakan *Hamming Window* dan teknik normalisasi untuk menghilangkan *noise* akibat gerakan atau pencahayaan.
-4.  **Signal Processing (FFT):** Mengubah sinyal dari domain waktu ke domain frekuensi menggunakan *Fast Fourier Transform* untuk menentukan frekuensi dominan yang merupakan detak jantung.
-5.  **Visualization:** Menampilkan grafik rPPG secara *real-time* dan hasil akhir BPM kepada pengguna.
+Vital Pulse mengukur **detak jantung (BPM)**, **variabilitas detak jantung (HRV)**, dan **estimasi tekanan darah** hanya dengan kamera depan smartphone — tanpa sensor fisik, tanpa alat tambahan, dan seluruh pemrosesan berjalan **on-device** (tidak ada data yang dikirim ke server).
 
 ---
 
-## 🛠️ Teknologi & Stack
+## 📖 Apa itu rPPG?
 
-### **Arsitektur & Infrastruktur**
-*   **Language:** Kotlin (100%)
-*   **UI Framework:** Jetpack Compose (Modern Declarative UI)
-*   **Camera API:** CameraX (Analysis mode untuk pemrosesan frame per frame)
-*   **AI/ML:** Google ML Kit Face Detection (Local, on-device processing)
-*   **Signal Processing:** JTransforms (Library FFT berbasis Java tercepat untuk JVM)
-*   **Concurrency:** Kotlin Coroutines (Untuk pemrosesan background agar UI tetap lancar)
+Setiap kali jantung berdenyut, volume darah di pembuluh kapiler wajah berubah sesaat. Perubahan ini menyebabkan variasi warna kulit yang sangat halus — tidak terlihat oleh mata telanjang, tetapi terekam secara numerik pada nilai piksel kamera. **Remote Photoplethysmography (rPPG)** adalah teknik mengekstrak sinyal denyut nadi dari variasi warna tersebut, "remote" karena tidak ada kontak fisik antara sensor dan tubuh.
 
 ---
 
-## 📉 Mengapa Tidak Menggunakan FFT.js & Expo Go?
+## ⚙️ Cara Kerja Sistem
 
-Pada rencana awal, aplikasi ini dipertimbangkan menggunakan React Native dengan Expo Go dan FFT.js. Namun, demi mencapai akurasi standar medis/tesis, diputuskan untuk menggunakan **Native Android (Kotlin)** karena:
+Pipeline pemrosesan sinyal berjalan real-time pada setiap frame kamera (±30 fps):
 
-1.  **Kompatibilitas & Performa Pixel:** rPPG membutuhkan akses ke *raw buffer* dari setiap frame kamera (30-60 fps). Expo Go memiliki *overhead* pada *bridge* JavaScript yang menyebabkan *dropped frames*, sehingga sinyal menjadi tidak konsisten.
-2.  **Akses Native Terbatas:** Expo Go membatasi akses ke API kamera tingkat rendah yang diperlukan untuk mengunci fokus, eksposur, dan *white balance* secara manual—elemen krusial agar deteksi warna kulit stabil.
-3.  **Optimasi Matematika:** Library FFT di JavaScript tidak secepat JTransforms (JVM) dalam melakukan operasi *Double Floating Point* secara paralel pada perangkat *mobile*.
-4.  **Manajemen Memori:** Pemrosesan gambar di tingkat native jauh lebih efisien dalam penggunaan RAM dibandingkan melakukan transfer data gambar yang besar dari Native ke JavaScript.
+```
+Kamera Depan (CameraX)
+        │
+        ▼
+1. Deteksi Wajah (ML Kit) ──► tentukan ROI dahi (forehead)
+        │
+        ▼
+2. Ekstraksi Sinyal ──► konversi YUV→RGB, rata-rata kanal R/G/B pada ROI
+        │
+        ▼
+3. Algoritma CHROM ──► kombinasi chrominance R/G/B untuk menekan
+        │              noise gerakan & pencahayaan
+        ▼
+4. Hamming Window + FFT (JTransforms, buffer 128 sampel)
+        │
+        ▼
+5. Cari frekuensi dominan pada rentang 0.7–4.0 Hz (42–240 BPM)
+        │
+        ▼
+6. BPM + skor confidence + HRV (RMSSD) ──► tampilkan ke UI
+```
+
+Detail tiap tahap:
+
+1. **Face Tracking** — Google ML Kit mendeteksi wajah (mode `FAST`, dijalankan tiap 10 frame agar hemat CPU), lalu *Region of Interest* (ROI) ditetapkan di area **dahi** karena paling minim gangguan (rambut, mata, mulut) dan kaya pembuluh kapiler.
+2. **Ekstraksi Sinyal** — Frame YUV dari CameraX dikonversi ke RGB, lalu nilai rata-rata setiap kanal warna di dalam ROI dihitung dan disimpan ke buffer geser (*sliding buffer*) 128 sampel.
+3. **Algoritma CHROM** — Ketiga kanal dinormalisasi terhadap rata-ratanya, lalu dikombinasikan menjadi dua sumbu chrominance (`X = 3R − 2G`, `Y = 1.5R + G − 1.5B`). Kombinasi `X − αY` menghasilkan sinyal denyut yang jauh lebih tahan terhadap gerakan kepala dan perubahan pencahayaan dibanding kanal hijau mentah.
+4. **FFT** — Sinyal diberi *Hamming window* untuk mengurangi spectral leakage, lalu ditransformasi ke domain frekuensi dengan *Fast Fourier Transform* (JTransforms).
+5. **Estimasi BPM** — Frekuensi dengan daya tertinggi pada rentang fisiologis 0.7–4.0 Hz dipilih sebagai detak jantung. **Skor confidence** dihitung dari rasio daya puncak terhadap rata-rata daya; jika confidence rendah beruntun (pengguna banyak bergerak), buffer di-flush dan pengukuran diulang otomatis.
+6. **HRV & Estimasi Tekanan Darah** — HRV dihitung dengan metode **RMSSD** dari interval antar puncak sinyal. Tekanan darah diestimasi dari model sederhana berbasis BPM + HRV yang dapat **dikalibrasi** terhadap tensimeter sungguhan melalui menu Settings.
 
 ---
 
-## 📋 Software Requirements Specification (SRS)
+## ✨ Fitur
 
-### **Fitur Utama**
-*   **Real-time Scanning:** Deteksi BPM dalam 15 detik.
-*   **Advanced Vitals:** Estimasi HRV (RMSSD) dan Saturasi Oksigen.
-*   **Live Waveform:** Visualisasi gelombang denyut nadi secara langsung.
-*   **Data Export:** Kemampuan mengekspor data sinyal mentah ke format CSV untuk kebutuhan riset/tesis.
+| Fitur | Deskripsi |
+|---|---|
+| 💓 **Real-time BPM** | Deteksi detak jantung langsung dari kamera dengan indikator status (Searching → Stabilizing → Measuring) |
+| 📈 **Live Waveform** | Visualisasi gelombang sinyal rPPG secara real-time |
+| 🫀 **HRV (RMSSD)** | Variabilitas detak jantung sebagai indikator kondisi tubuh |
+| 🩺 **Estimasi Tekanan Darah** | Model estimasi sistolik/diastolik dengan kalibrasi manual |
+| 📊 **Klasifikasi & Rekomendasi** | Status LOW / NORMAL / ELEVATED / HIGH beserta saran kesehatan |
+| 🗂️ **Riwayat Pengukuran** | Semua hasil scan tersimpan lokal di database Room |
+| 📅 **Insights Mingguan** | Statistik rata-rata, maksimum, dan minimum BPM 7 hari terakhir |
+| 🔒 **Privasi Penuh** | Seluruh pemrosesan on-device, tidak ada data yang keluar dari perangkat |
 
-### **Persyaratan Sistem**
-*   **OS:** Android 8.0 (Oreo) - API Level 26 atau lebih tinggi.
-*   **Hardware:** Kamera depan minimal 720p; Prosesor Quad-core (disarankan Octa-core untuk ML Kit).
-*   **Permissions:** Izin Kamera (Wajib).
+---
+
+## 🛠️ Teknologi
+
+| Komponen | Teknologi |
+|---|---|
+| Bahasa | Kotlin 100% |
+| UI | Jetpack Compose + Material 3 |
+| Kamera | CameraX (`ImageAnalysis`, akses raw YUV buffer per frame) |
+| Deteksi Wajah | Google ML Kit Face Detection (on-device) |
+| Signal Processing | JTransforms (FFT), algoritma CHROM |
+| Database | Room (SQLite) |
+| Arsitektur | MVVM (ViewModel + StateFlow + Coroutines) |
+| Build | Gradle Kotlin DSL, AGP 8.8, Kotlin 2.1 |
 
 ---
 
 ## 📂 Struktur Proyek
-*   `MainActivity.kt`: Logika UI dan manajemen siklus hidup kamera.
-*   `rPPGAnalyzer.kt`: Mesin inti pemrosesan sinyal, deteksi wajah, dan kalkulasi FFT.
-*   `Theme.kt`: Definisi desain sistem (Vital Pulse Theme).
+
+```
+src/main/kotlin/com/invisiblepulse/rppg/
+├── MainActivity.kt          # Entry point, navigasi, siklus hidup kamera
+├── rPPGAnalyzer.kt          # Mesin inti: deteksi wajah, ekstraksi sinyal, CHROM, FFT
+├── Theme.kt                 # Design system (Vital Pulse Theme)
+├── data/
+│   ├── AppDatabase.kt       # Konfigurasi Room database
+│   ├── ScanDao.kt           # Query riwayat pengukuran
+│   └── ScanRecord.kt        # Entity hasil scan
+├── ui/
+│   ├── VitalsScreen.kt      # Layar pengukuran utama (kamera + waveform)
+│   ├── ResultsScreen.kt     # Hasil pengukuran & rekomendasi
+│   ├── HistoryScreen.kt     # Riwayat pengukuran
+│   ├── InsightsScreen.kt    # Statistik mingguan
+│   └── SettingsScreen.kt    # Kalibrasi tekanan darah & pengaturan
+├── utils/
+│   ├── BPEstimator.kt       # Model estimasi tekanan darah & klasifikasi
+│   └── CalibrationPrefs.kt  # Penyimpanan offset kalibrasi
+└── viewmodel/
+    └── ScanViewModel.kt     # State management & akses database
+```
 
 ---
+
+## 🚀 Cara Menjalankan
+
+### Prasyarat
+
+- **Android Studio** Ladybug atau lebih baru
+- **JDK 11+**
+- **Android SDK 35** (compile target), perangkat fisik dengan **Android 8.0 (API 26)** ke atas
+- Perangkat fisik sangat disarankan (emulator tidak memiliki kamera depan sungguhan)
+
+### Langkah
+
+```bash
+# 1. Clone repositori
+git clone https://github.com/AbdisrZ/-rPPG-Vital-Pulse.git
+cd -rPPG-Vital-Pulse
+
+# 2. Buka di Android Studio → biarkan Gradle sync selesai
+
+# 3. Hubungkan perangkat Android (aktifkan USB Debugging), lalu Run ▶
+```
+
+Atau lewat command line:
+
+```bash
+./gradlew assembleDebug        # build APK debug
+./gradlew installDebug         # install ke perangkat yang terhubung
+```
+
+### Tips Pengukuran Akurat
+
+1. Gunakan di ruangan dengan **pencahayaan cukup dan stabil** (hindari cahaya berkedip/backlight).
+2. Posisikan wajah memenuhi frame dan **tahan posisi tetap** selama ±15 detik.
+3. Pastikan dahi tidak tertutup rambut atau topi.
+
+---
+
+## 📱 Persyaratan Sistem
+
+- **OS:** Android 8.0 (Oreo) / API 26 ke atas
+- **Hardware:** Kamera depan minimal 720p
+- **Izin:** Kamera (wajib) — satu-satunya izin yang diminta aplikasi
+
+---
+
+## ⚠️ Disclaimer
+
+Aplikasi ini dikembangkan untuk **keperluan riset dan edukasi**. Hasil pengukuran — khususnya estimasi tekanan darah — **bukan alat diagnosis medis** dan belum tervalidasi secara klinis. Selalu gunakan alat medis tersertifikasi dan konsultasikan dengan tenaga medis profesional untuk keputusan kesehatan.
+
+---
+
 *Developed for research and health monitoring innovation.*
