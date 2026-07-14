@@ -43,3 +43,17 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Local machine config ###
+local.properties
+
+### AI agent / Claude Code ###
+.claude/
+CLAUDE.md
+
+### Dokumen lokal (tidak di-push ke GitHub) ###
+*.md
+!README.md
+docs/
+log.txt
+tugasakhir*.py

@@ -2,6 +2,7 @@ plugins {
     id("com.android.application") version "8.8.0"
     id("org.jetbrains.kotlin.android") version "2.1.0"
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.0"
+    id("com.google.devtools.ksp") version "2.1.0-1.0.29"
 }
 
 android {
@@ -16,41 +17,29 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
+        vectorDrawables { useSupportLibrary = true }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-    buildFeatures {
-        compose = true
-    }
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
+    kotlinOptions { jvmTarget = "11" }
+    buildFeatures { compose = true }
+    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation(platform("androidx.compose:compose-bom:2024.05.00"))
     implementation("androidx.compose.ui:ui")
@@ -58,6 +47,12 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+
+    // Room
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 
     // CameraX
     val cameraVersion = "1.4.1"
@@ -68,10 +63,10 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraVersion")
     implementation("androidx.camera:camera-extensions:$cameraVersion")
 
-    // ML Kit Face Detection
+    // ML Kit
     implementation("com.google.mlkit:face-detection:16.1.7")
 
-    // FFT (JTransforms or math library)
+    // FFT
     implementation("com.github.wendykierp:JTransforms:3.1")
 
     testImplementation("junit:junit:4.13.2")
