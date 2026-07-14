@@ -159,8 +159,7 @@ Aplikasi ini dikembangkan untuk **keperluan riset dan edukasi**. Hasil pengukura
 
 ---
 
-## 📬 Kontak
-
+## Made By :
 **Instagram:** [@asr_abdisr](https://instagram.com/asr_abdisr)
 
 ---
