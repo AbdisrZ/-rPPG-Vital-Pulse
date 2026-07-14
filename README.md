@@ -159,4 +159,10 @@ Aplikasi ini dikembangkan untuk **keperluan riset dan edukasi**. Hasil pengukura
 
 ---
 
+## 📬 Kontak
+
+**Instagram:** [@asr_abdisr](https://instagram.com/asr_abdisr)
+
+---
+
 *Developed for research and health monitoring innovation.*
